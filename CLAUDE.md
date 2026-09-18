@@ -222,6 +222,21 @@ demandant explicitement.
   marcherait aussi ; le critere est de savoir lequel des deux est le plus
   susceptible d'etre detruit et reconstruit — et c'est ce container.
 
+- **Handler d'erreur Express : traite le 2026-09-18.** `server.js` se termine
+  par un handler a 4 arguments qui loggue la trace cote serveur et ne renvoie
+  qu'un JSON sobre. Motivation : `express.json()` est monte **avant** l'auth
+  (il le faut, les routes ont besoin de `req.body`), et un body JSON malforme
+  y leve une `SyntaxError` passee a `next(err)` — ce qui saute toute la chaine
+  restante, donc le middleware d'auth. Le chemin etait donc atteignable **sans
+  token** (reproduit a l'execution, voir `TEST.md`), et le handler par defaut
+  d'Express joint `err.stack` tant que `NODE_ENV !== 'production'`, variable
+  definie nulle part ici. Ce qui fuyait etait mineur (l'arborescence `/app`,
+  jamais un secret ni le contenu de `/workspace`) mais c'etait le seul chemin
+  ou la propriete « le middleware est global, donc tout est protege par
+  defaut » ne tenait pas. Corrige dans le code plutot que par `NODE_ENV`, pour
+  ne pas dependre d'une variable d'environnement qu'un autre deploiement
+  pourrait oublier.
+
 ## Structure
 
 Convention du projet : un dossier `server/` qui contient tout le backend,
@@ -336,20 +351,6 @@ de la vraie logique metier (ex. plusieurs ressources) sans reorganisation.
   - `stdout` est accumule en memoire sans plafond : une sortie volumineuse
     (provoquable depuis le prompt) pese sur les ~380 Mo restants apres les
     tmpfs et peut declencher l'OOM killer.
-- **Handler d'erreur Express : traite le 2026-09-18.** `server.js` se termine
-  par un handler a 4 arguments qui loggue la trace cote serveur et ne renvoie
-  qu'un JSON sobre. Motivation : `express.json()` est monte **avant** l'auth
-  (il le faut, les routes ont besoin de `req.body`), et un body JSON malforme
-  y leve une `SyntaxError` passee a `next(err)` — ce qui saute toute la chaine
-  restante, donc le middleware d'auth. Le chemin etait donc atteignable **sans
-  token** (reproduit a l'execution, voir `TEST.md`), et le handler par defaut
-  d'Express joint `err.stack` tant que `NODE_ENV !== 'production'`, variable
-  definie nulle part ici. Ce qui fuyait etait mineur (l'arborescence `/app`,
-  jamais un secret ni le contenu de `/workspace`) mais c'etait le seul chemin
-  ou la propriete « le middleware est global, donc tout est protege par
-  defaut » ne tenait pas. Corrige dans le code plutot que par `NODE_ENV`, pour
-  ne pas dependre d'une variable d'environnement qu'un autre deploiement
-  pourrait oublier.
 - **Evaluer le Claude Agent SDK (`@anthropic-ai/claude-agent-sdk`) a la place
   du `spawn` du CLI.** C'est la bibliotheque officielle : Claude Code
   empaquete en dependance, au lieu de lancer le binaire et de parler avec lui
