@@ -1,0 +1,43 @@
+services:
+  claude-with-nodejs:
+    build:
+      context: .
+      dockerfile: claude-code.dockerfile
+    image: claude-with-nodejs:dev
+    container_name: claude-with-nodejs
+
+    # Aucun bloc "ports:" volontairement : le service n'est joignable que
+    # depuis le reseau Docker interne, jamais depuis l'hote.
+
+    environment:
+      CLAUDE_CODE_OAUTH_TOKEN: ${CLAUDE_CODE_OAUTH_TOKEN}
+      SERVICE_TOKEN_HASH: ${SERVICE_TOKEN_HASH}
+      CLAUDE_ALLOWED_TOOLS: ${CLAUDE_ALLOWED_TOOLS}
+      CLAUDE_TIMEOUT_MS: ${CLAUDE_TIMEOUT_MS}
+      CLAUDE_DEFAULT_MODEL: ${CLAUDE_DEFAULT_MODEL}
+
+    # Espaces de travail en RAM. Ces chemins sont repris en dur dans
+    # server/state/storage.js : les deux doivent rester synchronises.
+    tmpfs:
+      - /workspace:size=512m
+      - /root:size=128m
+
+    # Limites et durcissement : voir "Restrictions du container" dans README.md
+    mem_limit: 1g       # memoire totale, tmpfs inclus
+    cpus: "2"           # coeurs max, pour ne pas saturer l'hote
+    pids_limit: 512     # process max : arrete une bombe a fork
+    cap_drop:           # retire tous les pouvoirs speciaux de root
+      - ALL
+    security_opt:       # pas d'elevation de droits via un binaire setuid
+      - no-new-privileges:true
+
+    restart: unless-stopped
+    networks:
+      - external-network
+
+networks:
+  # "external-network" n'est qu'un alias local ; le vrai nom vient de
+  # DOCKER_NETWORK. Le reseau doit preexister (docker network create).
+  external-network:
+    external: true
+    name: ${DOCKER_NETWORK}
